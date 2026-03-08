@@ -1,0 +1,36 @@
+# 海底龙宫 (openclaw-sync) .gitignore
+
+# 日志文件
+logs/
+*.log
+
+# 配置文件（包含敏感信息）
+config.json
+*.secret
+*.token
+*.key
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.bak
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试
+test/
+tests/
+*.test.sh
+
+# 文档生成
+docs/_build/

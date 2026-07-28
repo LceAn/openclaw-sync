@@ -470,3 +470,27 @@ cat logs/sync-*.log | tail -50
 [⭐ Star 这个仓库](https://github.com/LceAn/openclaw-sync) | [📖 查看文档](docs/) | [🐛 报告问题](https://github.com/LceAn/openclaw-sync/issues)
 
 </div>
+
+---
+
+## 仓库结构
+
+- `.gitignore`
+- `LICENSE`
+- `PROJECT-PLAN.md`
+- `README.md`
+- `TaskBoard/`
+- `docs/`
+- `init-github-repo.sh`
+- `openclaw-sync.sh`
+- `quick-start.sh`
+
+<!-- repo-readme-standard:v1 -->
+## 仓库维护信息
+
+- 项目类型：产品/工具
+- 当前状态：待复盘
+- 可见性：public
+- 维护节奏：每月只选 1-2 个小更新
+- 相关仓库：无已确认的重复仓库关系；如需合并请先核对功能边界。
+- 维护边界：普通文档和代码更新可直接提交；归档、删除、历史重写或强制推送需单独确认。

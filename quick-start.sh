@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # 海底龙宫 - 快速启动脚本
 # =============================================================================
@@ -6,7 +6,7 @@
 # 功能：交互式引导完成首次同步
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYNC_SCRIPT="$SCRIPT_DIR/openclaw-sync.sh"
@@ -95,9 +95,9 @@ read -p "是否使用默认路径？(Y/n): " -n 1 -r
 echo ""
 
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    WORKSPACE_PATH="~/Desktop/openclaw/Config"
+    WORKSPACE_PATH="$HOME/Desktop/openclaw/Config"
 else
-    read -p "请输入工作区路径：" WORKSPACE_PATH
+    read -r -p "请输入工作区路径：" WORKSPACE_PATH
 fi
 
 echo ""
@@ -145,7 +145,7 @@ echo -e "${GREEN}✓ 同步完成！${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "查看同步结果："
-echo "  https://github.com/LceAn/openclaw-config"
+echo "  https://github.com/${OPENCLAW_SYNC_REPO:-LceAn/openclaw-config}"
 echo ""
 echo "后续使用："
 echo "  ./openclaw-sync.sh -p          # 快速同步"

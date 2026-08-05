@@ -27,10 +27,5 @@ Thumbs.db
 *.swo
 *~
 
-# 测试
-test/
-tests/
-*.test.sh
-
 # 文档生成
 docs/_build/

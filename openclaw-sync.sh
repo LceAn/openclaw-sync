@@ -19,7 +19,6 @@
 #   -n, --dry-run     预览模式
 #   -s, --status      仅显示状态
 #   -v, --verbose     详细输出
-#   -c, --config      指定配置文件
 #   -w, --workspace   指定工作区路径
 #   -h, --help        显示帮助
 #
@@ -30,13 +29,12 @@
 #   ./openclaw-sync.sh -w ~/my-config  # 指定工作区
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 # =============================================================================
 # 版本信息
 # =============================================================================
 readonly VERSION="1.0.0"
-readonly TOOL_NAME="海底龙宫"
 readonly REPO_URL="https://github.com/LceAn/openclaw-sync"
 
 # =============================================================================
@@ -45,8 +43,6 @@ readonly REPO_URL="https://github.com/LceAn/openclaw-sync"
 DEFAULT_GITHUB_REPO="LceAn/openclaw-config"
 DEFAULT_GITHUB_BRANCH="main"
 DEFAULT_WORKSPACE="./Config"
-DEFAULT_GIT_USER_NAME="OpenClaw Sync Bot"
-DEFAULT_GIT_USER_EMAIL="openclaw-sync@local"
 
 # =============================================================================
 # 全局变量
@@ -55,9 +51,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR=""
 GITHUB_REPO=""
 GITHUB_BRANCH=""
-GIT_USER_NAME=""
-GIT_USER_EMAIL=""
-CONFIG_FILE=""
 
 # 标志位
 DO_PUSH=false
@@ -80,7 +73,6 @@ if [[ -t 1 ]]; then
     BLUE='\033[0;34m'
     CYAN='\033[0;36m'
     MAGENTA='\033[0;35m'
-    WHITE='\033[0;37m'
     BOLD='\033[1m'
     NC='\033[0m'
 else
@@ -90,7 +82,6 @@ else
     BLUE=''
     CYAN=''
     MAGENTA=''
-    WHITE=''
     BOLD=''
     NC=''
 fi
@@ -104,7 +95,8 @@ log() {
     local color="$2"
     shift 2
     local message="$*"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     # 输出到终端
     echo -e "[$timestamp] [${color}${level}${NC}] $message"
@@ -128,7 +120,9 @@ debug() {
 print_header() {
     local text="$1"
     local width=50
-    local line=$(printf '=%.0s' $(seq 1 $width))
+    local line
+    printf -v line '%*s' "$width" ''
+    line=${line// /=}
     
     echo -e "${CYAN}${line}${NC}"
     echo -e "${CYAN}${BOLD}$text${NC}"
@@ -156,10 +150,9 @@ cleanup() {
     # 可以在这里添加清理逻辑
 }
 
-trap cleanup EXIT
-
 init_log() {
-    local workspace_name=$(basename "$WORKSPACE_DIR")
+    local workspace_name
+    workspace_name=$(basename "$WORKSPACE_DIR")
     LOG_DIR="$SCRIPT_DIR/logs"
     mkdir -p "$LOG_DIR"
     LOG_FILE="$LOG_DIR/sync-${workspace_name}-$(date +%Y%m%d_%H%M%S).log"
@@ -178,16 +171,6 @@ load_config() {
     WORKSPACE_DIR="${WORKSPACE_DIR:-$DEFAULT_WORKSPACE}"
     GITHUB_REPO="${GITHUB_REPO:-$DEFAULT_GITHUB_REPO}"
     GITHUB_BRANCH="${GITHUB_BRANCH:-$DEFAULT_GITHUB_BRANCH}"
-    GIT_USER_NAME="${GIT_USER_NAME:-$DEFAULT_GIT_USER_NAME}"
-    GIT_USER_EMAIL="${GIT_USER_EMAIL:-$DEFAULT_GIT_USER_EMAIL}"
-    
-    # 从配置文件加载（如果指定）
-    if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
-        debug "从配置文件加载：$CONFIG_FILE"
-        # 这里可以解析 JSON 配置文件
-        # 暂时简化处理
-    fi
-    
     # 从环境变量加载（优先级最高）
     WORKSPACE_DIR="${OPENCLAW_SYNC_WORKSPACE:-$WORKSPACE_DIR}"
     GITHUB_REPO="${OPENCLAW_SYNC_REPO:-$GITHUB_REPO}"
@@ -226,16 +209,25 @@ parse_args() {
                 shift
                 ;;
             -c|--config)
-                CONFIG_FILE="$2"
-                shift 2
+                error "配置文件参数尚未实现，请使用 OPENCLAW_SYNC_* 环境变量"
+                exit 2
                 ;;
             -w|--workspace)
+                if [[ $# -lt 2 ]]; then
+                    error "$1 需要工作区路径"
+                    exit 2
+                fi
                 WORKSPACE_DIR="$2"
                 shift 2
                 ;;
             -h|--help)
                 show_help
                 exit 0
+                ;;
+            -fp|-pf)
+                DO_PULL=true
+                DO_PUSH=true
+                shift
                 ;;
             -V|--version)
                 echo "海底龙宫 (openclaw-sync) v$VERSION"
@@ -263,7 +255,6 @@ ${BOLD}选项:${NC}
   -n, --dry-run     预览模式，不执行实际操作
   -s, --status      仅显示同步状态
   -v, --verbose     详细输出模式
-  -c, --config      指定配置文件路径
   -w, --workspace   指定工作区路径
   -h, --help        显示此帮助信息
   -V, --version     显示版本号
@@ -273,24 +264,11 @@ ${BOLD}示例:${NC}
   $0 -fp                        # 拉取 + 提交 + 推送
   $0 -n -p                      # 预览推送操作
   $0 -w ~/my-config -p          # 指定工作区并推送
-  $0 -c ~/.config.json -p       # 使用配置文件
 
 ${BOLD}环境变量:${NC}
   OPENCLAW_SYNC_WORKSPACE       工作区路径
   OPENCLAW_SYNC_REPO            GitHub 仓库（格式：user/repo）
   OPENCLAW_SYNC_BRANCH          分支名称（默认：main）
-
-${BOLD}配置示例:${NC}
-  {
-    "github": {
-      "repo": "your-username/openclaw-config",
-      "branch": "main"
-    },
-    "workspace": {
-      "path": "~/Desktop/openclaw/Config",
-      "exclude": [".openclaw/", "*.log"]
-    }
-  }
 
 ${BOLD}仓库:${NC}
   $REPO_URL
@@ -315,29 +293,107 @@ check_prerequisites() {
         success "Git 已安装：$(git --version)"
     fi
     
+    if [[ ! "$GITHUB_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+        error "仓库格式无效，应为 owner/repository：$GITHUB_REPO"
+        has_error=true
+    fi
+
+    if ! git check-ref-format --branch "$GITHUB_BRANCH" &> /dev/null; then
+        error "分支名称无效：$GITHUB_BRANCH"
+        has_error=true
+    fi
+
     # 检查工作区目录
     if [[ ! -d "$WORKSPACE_DIR" ]]; then
         error "工作区目录不存在：$WORKSPACE_DIR"
         has_error=true
     else
-        success "工作区目录存在：$(realpath "$WORKSPACE_DIR")"
+        WORKSPACE_DIR=$(cd "$WORKSPACE_DIR" && pwd -P)
+        success "工作区目录存在：$WORKSPACE_DIR"
     fi
-    
-    # 检查 GitHub 连接
-    if ! git ls-remote "https://github.com/$GITHUB_REPO.git" &> /dev/null; then
-        warn "无法访问 GitHub 仓库：$GITHUB_REPO"
-        if [[ "$DO_PULL" == true || "$DO_PUSH" == true ]]; then
-            error "需要 GitHub 认证才能执行拉取/推送操作"
+
+    if [[ -d "$WORKSPACE_DIR" ]] && ! git -C "$WORKSPACE_DIR" rev-parse --is-inside-work-tree &> /dev/null; then
+        error "工作区不是 Git 仓库：$WORKSPACE_DIR"
+        has_error=true
+    elif [[ -d "$WORKSPACE_DIR" ]]; then
+        local current_branch
+        current_branch=$(git -C "$WORKSPACE_DIR" branch --show-current)
+        if [[ "$current_branch" != "$GITHUB_BRANCH" ]]; then
+            error "当前分支为 $current_branch，预期分支为 $GITHUB_BRANCH"
             has_error=true
         fi
-    else
-        success "GitHub 仓库可访问：$GITHUB_REPO"
+
+        local remote_url
+        remote_url=$(git -C "$WORKSPACE_DIR" remote get-url origin 2>/dev/null || true)
+        if ! remote_matches_repo "$remote_url" "$GITHUB_REPO"; then
+            error "origin 与目标仓库不一致，拒绝继续"
+            has_error=true
+        elif [[ "$DO_PULL" == true || "$DO_PUSH" == true ]] && ! git -C "$WORKSPACE_DIR" ls-remote origin &> /dev/null; then
+            error "无法通过 origin 访问目标仓库：$GITHUB_REPO"
+            has_error=true
+        else
+            success "目标仓库已核对：$GITHUB_REPO"
+        fi
     fi
     
     if [[ "$has_error" == true ]]; then
         error "前置检查失败"
         exit 1
     fi
+}
+
+remote_matches_repo() {
+    local remote_url="${1:-}"
+    local expected_repo="${2:-}"
+    case "$remote_url" in
+        "https://github.com/$expected_repo"|"https://github.com/$expected_repo.git"|\
+        "git@github.com:$expected_repo"|"git@github.com:$expected_repo.git"|\
+        "ssh://git@github.com/$expected_repo"|"ssh://git@github.com/$expected_repo.git")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+redact_remote_url() {
+    local remote_url="${1:-}"
+    if [[ "$remote_url" == *"://"*"@"* ]]; then
+        printf '%s\n' "$remote_url" | sed -E 's#(://)[^/@]+@#\1***@#'
+    else
+        printf '%s\n' "$remote_url"
+    fi
+}
+
+is_sensitive_path() {
+    local path
+    path=$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')
+    local name="${path##*/}"
+    case "$name" in
+        .env.example|*.env.example)
+            return 1
+            ;;
+        .env|*.env|*.pem|*.key|*.p12|*.pfx|*.token|*.secret|id_rsa|id_ed25519|*credentials*.json)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+check_staged_sensitive_paths() {
+    local found=false
+    local path
+    while IFS= read -r path; do
+        if is_sensitive_path "$path"; then
+            error "检测到敏感文件名：$path"
+            found=true
+        fi
+    done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+    [[ "$found" == false ]]
 }
 
 # =============================================================================
@@ -367,18 +423,23 @@ check_status() {
     
     # 远程信息
     echo -e "\n${BLUE}${BOLD}=== 远程仓库 ===${NC}"
-    git remote -v
+    local remote_url
+    remote_url=$(git remote get-url origin 2>/dev/null || true)
+    printf 'origin\t%s\n' "$(redact_remote_url "$remote_url")"
     
     # 与远程的差异
     echo -e "\n${BLUE}${BOLD}=== 与远程差异 ===${NC}"
-    local current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     if git rev-parse --verify "origin/$current_branch" &> /dev/null; then
-        local ahead=$(git rev-list --count "HEAD..origin/$current_branch" 2>/dev/null || echo "0")
-        local behind=$(git rev-list --count "origin/$current_branch..HEAD" 2>/dev/null || echo "0")
+        local remote_ahead
+        local local_ahead
+        remote_ahead=$(git rev-list --count "HEAD..origin/$current_branch" 2>/dev/null || echo "0")
+        local_ahead=$(git rev-list --count "origin/$current_branch..HEAD" 2>/dev/null || echo "0")
         
-        if [[ "$ahead" != "0" || "$behind" != "0" ]]; then
-            info "本地领先远程：$behind 个提交"
-            info "远程领先本地：$ahead 个提交"
+        if [[ "$remote_ahead" != "0" || "$local_ahead" != "0" ]]; then
+            info "本地领先远程：$local_ahead 个提交"
+            info "远程领先本地：$remote_ahead 个提交"
         else
             success "本地与远程同步"
         fi
@@ -401,26 +462,35 @@ preview_changes() {
     local has_changes=false
     
     # 未跟踪的文件
-    local untracked=$(git ls-files --others --exclude-standard)
+    local untracked
+    untracked=$(git ls-files --others --exclude-standard)
     if [[ -n "$untracked" ]]; then
         echo -e "\n${BLUE}新文件（将添加）:${NC}"
-        echo "$untracked" | sed 's/^/  + /'
+        while IFS= read -r path; do
+            printf '  + %s\n' "$path"
+        done <<< "$untracked"
         has_changes=true
     fi
     
     # 修改的文件
-    local modified=$(git diff --name-only)
+    local modified
+    modified=$(git diff HEAD --name-only 2>/dev/null || git diff --name-only)
     if [[ -n "$modified" ]]; then
         echo -e "\n${BLUE}修改的文件:${NC}"
-        echo "$modified" | sed 's/^/  ~ /'
+        while IFS= read -r path; do
+            printf '  ~ %s\n' "$path"
+        done <<< "$modified"
         has_changes=true
     fi
     
     # 删除的文件
-    local deleted=$(git diff --name-only --diff-filter=D)
+    local deleted
+    deleted=$(git diff HEAD --name-only --diff-filter=D 2>/dev/null || git diff --name-only --diff-filter=D)
     if [[ -n "$deleted" ]]; then
         echo -e "\n${BLUE}删除的文件:${NC}"
-        echo "$deleted" | sed 's/^/  - /'
+        while IFS= read -r path; do
+            printf '  - %s\n' "$path"
+        done <<< "$deleted"
         has_changes=true
     fi
     
@@ -445,10 +515,11 @@ execute_sync() {
         if [[ "$DRY_RUN" == true ]]; then
             info "[预览] git pull origin $GITHUB_BRANCH --rebase"
         else
-            if git pull origin "$GITHUB_BRANCH" --rebase; then
+            if git pull --rebase --autostash origin "$GITHUB_BRANCH"; then
                 success "拉取成功"
             else
-                warn "拉取失败，可能存在冲突"
+                error "拉取失败，停止同步；请先处理冲突"
+                return 1
             fi
         fi
     fi
@@ -456,26 +527,35 @@ execute_sync() {
     # 步骤 2: 添加变更
     print_header "步骤 2: 添加变更"
     
-    local changes=$(git status --porcelain)
+    local changes
+    changes=$(git status --porcelain)
     if [[ -z "$changes" ]]; then
         success "没有变更，跳过提交"
         return
     fi
     
     if [[ "$DRY_RUN" == true ]]; then
-        info "[预览] git add ."
+        info "[预览] git add -A"
         info "[预览] 变更内容："
-        echo "$changes" | sed 's/^/  /'
+        while IFS= read -r path; do
+            printf '  %s\n' "$path"
+        done <<< "$changes"
     else
-        git add .
-        local change_count=$(echo "$changes" | wc -l | tr -d ' ')
+        git add -A
+        if ! check_staged_sensitive_paths; then
+            error "已停止提交。请从暂存区移除敏感文件并补充目标仓库的 .gitignore"
+            return 1
+        fi
+        local change_count
+        change_count=$(echo "$changes" | wc -l | tr -d ' ')
         info "已添加 $change_count 个变更"
     fi
     
     # 步骤 3: 提交变更
     print_header "步骤 3: 提交变更"
     
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     local commit_msg="🐉 Auto-sync: $timestamp"
     
     if [[ "$DRY_RUN" == true ]]; then
@@ -519,6 +599,7 @@ execute_sync() {
 # =============================================================================
 
 main() {
+    trap cleanup EXIT
     parse_args "$@"
     load_config
     init_log
@@ -541,5 +622,6 @@ main() {
     info "同步会话结束"
 }
 
-# 执行主流程
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
